@@ -2,13 +2,23 @@ import { User, Post, Story, Reel, Conversation, Message, Comment } from '../type
 import { CURRENT_USER, DEMO_USERS, INITIAL_POSTS, INITIAL_REELS, INITIAL_STORIES, INITIAL_CONVERSATIONS } from './mockData';
 
 const KEYS = {
-  USER: 'yanar_user',
+  USER: 'yanar_auth_session_v2',
   USERS: 'yanar_users',
   POSTS: 'yanar_posts',
   REELS: 'yanar_reels',
   STORIES: 'yanar_stories',
   CONVERSATIONS: 'yanar_conversations',
 };
+
+// Purge any legacy demo user stored from earlier deployments
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const legacy = localStorage.getItem('yanar_user');
+    if (legacy && (legacy.includes('alexrivers') || legacy.includes('usr_me'))) {
+      localStorage.removeItem('yanar_user');
+    }
+  }
+} catch {}
 
 function getStored<T>(key: string, fallback: T): T {
   try {
@@ -28,16 +38,23 @@ function setStored<T>(key: string, value: T): void {
 }
 
 export const StorageService = {
-  // Current user
+  // Current user (strictly null when not explicitly logged in)
   getCurrentUser(): User | null {
-    return getStored<User | null>(KEYS.USER, null);
+    const user = getStored<User | null>(KEYS.USER, null);
+    if (!user || !user.id || user.id === 'usr_me' || user.username === 'alexrivers') {
+      return null;
+    }
+    return user;
   },
 
   setCurrentUser(user: User | null): void {
-    if (user) {
+    if (user && user.id !== 'usr_me' && user.username !== 'alexrivers') {
       setStored(KEYS.USER, user);
     } else {
-      localStorage.removeItem(KEYS.USER);
+      try {
+        localStorage.removeItem(KEYS.USER);
+        localStorage.removeItem('yanar_user');
+      } catch {}
     }
   },
 

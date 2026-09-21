@@ -26,18 +26,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [demoUsers, setDemoUsers] = useState<User[]>(DEMO_USERS);
 
   useEffect(() => {
-    // 1. Check if an active session exists in localStorage
+    // Clear any stale legacy demo user from older deployments
+    try {
+      localStorage.removeItem('yanar_user');
+    } catch {}
+
+    // Check if an active registered session exists
     const saved = StorageService.getCurrentUser();
-    if (saved && saved.id) {
+    if (saved && saved.id && saved.id !== 'usr_me' && saved.username !== 'alexrivers') {
       setUser(saved);
       setIsAuthenticated(true);
     } else {
       setUser(null);
       setIsAuthenticated(false);
+      StorageService.setCurrentUser(null);
     }
     setIsLoading(false);
 
-    // 2. Fetch available demo accounts
+    // Fetch available demo accounts for the optional explorer drawer
     ApiClient.getDemoUsers().then((users) => {
       if (users && users.length > 0) {
         setDemoUsers(users);

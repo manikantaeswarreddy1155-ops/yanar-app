@@ -40,12 +40,16 @@ const AppContent: React.FC = () => {
 
   // Load from live SQLite database via ApiClient
   useEffect(() => {
+    if (!user?.id || user.id === 'usr_me' || user.username === 'alexrivers') {
+      return;
+    }
+
     async function loadData() {
       const [fetchedPosts, fetchedReels, fetchedStories, fetchedConvs, fetchedUsers] = await Promise.all([
         ApiClient.getPosts(),
         ApiClient.getReels(),
         ApiClient.getStories(),
-        ApiClient.getConversations(user?.id || 'usr_me'),
+        ApiClient.getConversations(user?.id || ''),
         ApiClient.getUsers(),
       ]);
 
@@ -104,7 +108,7 @@ const AppContent: React.FC = () => {
       })
     );
 
-    await ApiClient.toggleLikePost(postId, user?.id || 'usr_me');
+    await ApiClient.toggleLikePost(postId, user?.id || '');
   };
 
   const handleSavePost = (postId: string) => {
@@ -113,7 +117,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleAddComment = async (postId: string, text: string) => {
-    const newComment = await ApiClient.addComment(postId, text, user?.id || 'usr_me');
+    const newComment = await ApiClient.addComment(postId, text, user?.id || '');
     if (newComment) {
       setPosts((prev) =>
         prev.map((p) =>
@@ -144,7 +148,7 @@ const AppContent: React.FC = () => {
       })
     );
 
-    await ApiClient.toggleLikeReel(reelId, user?.id || 'usr_me');
+    await ApiClient.toggleLikeReel(reelId, user?.id || '');
   };
 
   // Story handlers
@@ -155,7 +159,7 @@ const AppContent: React.FC = () => {
 
   // Follow handler
   const handleToggleFollow = async (targetUserId: string) => {
-    const updatedUser = await ApiClient.toggleFollow(targetUserId, user?.id || 'usr_me');
+    const updatedUser = await ApiClient.toggleFollow(targetUserId, user?.id || '');
     if (updatedUser) {
       setUsers((prev) => prev.map((u) => (u.id === targetUserId ? updatedUser : u)));
       setPosts((prev) =>
@@ -172,7 +176,7 @@ const AppContent: React.FC = () => {
     // Optimistic local add
     const tempMsg = {
       id: `msg_${Date.now()}`,
-      senderId: user?.id || 'usr_me',
+      senderId: user?.id || '',
       text: content.text,
       mediaUrl: content.mediaUrl,
       mediaType: content.mediaType,
@@ -190,7 +194,7 @@ const AppContent: React.FC = () => {
 
     // Send to backend database
     await ApiClient.sendMessage(conversationId, {
-      senderId: user?.id || 'usr_me',
+      senderId: user?.id || '',
       text: content.text,
       mediaUrl: content.mediaUrl,
       mediaType: content.mediaType,
@@ -208,7 +212,7 @@ const AppContent: React.FC = () => {
   const handleCreatePost = (data: { mediaUrl: string; caption: string; location?: string; type?: 'image' | 'video' }) => {
     // Save to database
     ApiClient.createPost({
-      authorId: user?.id || 'usr_me',
+      authorId: user?.id || '',
       mediaUrl: data.mediaUrl,
       caption: data.caption,
       location: data.location,
@@ -226,7 +230,7 @@ const AppContent: React.FC = () => {
 
   const handleCreateReel = (data: { videoUrl: string; caption: string; audioTrack?: string }) => {
     ApiClient.createReel({
-      authorId: user?.id || 'usr_me',
+      authorId: user?.id || '',
       videoUrl: data.videoUrl,
       caption: data.caption,
       audioTrack: data.audioTrack,
@@ -242,7 +246,7 @@ const AppContent: React.FC = () => {
 
   const handleAddStory = (mediaUrl: string, type: 'image' | 'video' = 'image') => {
     ApiClient.createStory({
-      userId: user?.id || 'usr_me',
+      userId: user?.id || '',
       mediaUrl,
       type,
     }).then((newStory) => {
@@ -265,7 +269,8 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (!isAuthenticated || !user) {
+  // Strictly enforce auth gate: if unauthenticated or legacy demo user, show AuthPage
+  if (!isAuthenticated || !user || user.id === 'usr_me' || user.username === 'alexrivers') {
     return <AuthPage onSuccess={() => setActiveTab('home')} />;
   }
 
