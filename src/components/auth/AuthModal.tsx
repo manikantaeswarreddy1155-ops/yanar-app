@@ -26,11 +26,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
     try {
       if (isLoginView) {
-        await login(email || 'alexrivers@yanar.com', password || 'password123');
+        const res = await login(email || 'alexrivers@yanar.com', password || 'password123');
+        if (res.success) onClose();
       } else {
-        await signup(email, password, username, name);
+        const res = await signup({ username, name, email, password });
+        if (res.success) onClose();
       }
-      onClose();
     } finally {
       setIsLoading(false);
     }

@@ -19,13 +19,15 @@ import { ReelsView } from './components/reels/ReelsView';
 import { ChatView } from './components/chat/ChatView';
 import { ProfileView } from './components/profile/ProfileView';
 
-// Modals
+// Modals & Pages
 import { CallModal } from './components/calling/CallModal';
 import { UploadModal } from './components/upload/UploadModal';
 import { AuthModal } from './components/auth/AuthModal';
+import { AuthPage } from './components/auth/AuthPage';
+import { Sparkles } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [posts, setPosts] = useState<Post[]>([]);
   const [reels, setReels] = useState<Reel[]>([]);
@@ -251,6 +253,21 @@ const AppContent: React.FC = () => {
     setStories((prev) => [localStory, ...prev]);
     return localStory;
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-zinc-950 text-white space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-yanar-gradient flex items-center justify-center shadow-lg shadow-rose-500/30 animate-pulse">
+          <Sparkles className="w-6 h-6 text-white" />
+        </div>
+        <p className="text-xs text-zinc-500 tracking-wider font-semibold uppercase">Loading YANAR...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return <AuthPage onSuccess={() => setActiveTab('home')} />;
+  }
 
   // Total unread messages
   const totalUnread = conversations.reduce((acc, c) => acc + c.unreadCount, 0);

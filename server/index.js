@@ -113,21 +113,21 @@ function broadcast(payload) {
 
 // 1. Auth & Users
 app.post('/api/auth/login', (req, res) => {
-  const { email, username } = req.body;
-  let user = null;
+  const { identifier, email, username, password } = req.body;
+  const loginKey = (identifier || username || email || '').trim().toLowerCase();
 
-  if (email) {
-    const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
-    user = stmt.get(email);
+  if (!loginKey) {
+    return res.status(400).json({ success: false, error: 'Please enter your username or email' });
   }
-  if (!user && username) {
-    const stmt = db.prepare('SELECT * FROM users WHERE username = ?');
-    user = stmt.get(username);
-  }
+
+  const user = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?').get(loginKey, loginKey);
+
   if (!user) {
-    // Default to first user if demo
-    const stmt = db.prepare('SELECT * FROM users LIMIT 1');
-    user = stmt.get();
+    return res.status(401).json({ success: false, error: 'Account not found with this username or email' });
+  }
+
+  if (user.password && password && user.password !== password) {
+    return res.status(401).json({ success: false, error: 'Incorrect password' });
   }
 
   res.json({ success: true, user: formatUser(user) });
@@ -135,22 +135,44 @@ app.post('/api/auth/login', (req, res) => {
 
 app.post('/api/auth/signup', (req, res) => {
   const { username, name, email, password } = req.body;
-  const id = `usr_${Date.now()}`;
-  const avatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=400&q=80';
-  const bio = 'New explorer on YANAR ✨';
+
+  if (!username?.trim() || !name?.trim() || !email?.trim() || !password?.trim()) {
+    return res.status(400).json({ success: false, error: 'All fields (Name, Username, Email, Password) are required' });
+  }
+
+  const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Check for duplicate username or email
+  const existing = db.prepare('SELECT id, username, email FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?').get(cleanUsername, cleanEmail);
+  if (existing) {
+    if (existing.username.toLowerCase() === cleanUsername) {
+      return res.status(400).json({ success: false, error: 'Username is already taken. Please choose another.' });
+    }
+    return res.status(400).json({ success: false, error: 'An account with this email already exists. Please sign in instead.' });
+  }
+
+  const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name.trim())}&background=f43f5e&color=fff&bold=true&size=256`;
+  const bio = 'Hey there! I am new to YANAR ✨';
 
   const insertStmt = db.prepare(`
-    INSERT INTO users (id, username, name, email, password, avatar, bio, website)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, username, name, email, password, avatar, bio, website, is_verified, followers_count, following_count, posts_count)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0)
   `);
 
   try {
-    insertStmt.run(id, username.toLowerCase().replace(/\s+/g, '_'), name, email, password, avatar, bio, '');
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-    res.json({ success: true, user: formatUser(user) });
+    insertStmt.run(id, cleanUsername, name.trim(), cleanEmail, password, avatar, bio, '');
+    const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    res.status(201).json({ success: true, user: formatUser(newUser) });
   } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: 'Failed to create user account: ' + err.message });
   }
+});
+
+app.get('/api/auth/demo-users', (_req, res) => {
+  const demoUsers = db.prepare('SELECT * FROM users LIMIT 5').all();
+  res.json({ success: true, users: demoUsers.map(formatUser) });
 });
 
 app.get('/api/users', (_req, res) => {

@@ -8,7 +8,8 @@ import {
   Heart, 
   MessageCircle, 
   Play, 
-  ExternalLink 
+  ExternalLink,
+  LogOut
 } from 'lucide-react';
 import { Post, Reel } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -31,7 +32,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onLikePost,
   onSavePost,
 }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -93,8 +94,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <button
               onClick={() => setIsEditModalOpen(true)}
               className="p-2 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900"
+              title="Edit Profile Settings"
             >
               <Settings className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={logout}
+              className="px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-bold transition-colors flex items-center gap-1.5"
+              title="Log Out of your account"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Log Out</span>
             </button>
           </div>
 

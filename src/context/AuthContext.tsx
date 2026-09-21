@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types';
 import { StorageService } from '../services/storageService';
-import { DEMO_USERS, CURRENT_USER } from '../services/mockData';
+import { ApiClient } from '../services/apiClient';
+import { DEMO_USERS } from '../services/mockData';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   demoUsers: User[];
-  login: (email: string, password: string) => Promise<boolean>;
-  signup: (email: string, password: string, username: string, name: string) => Promise<boolean>;
+  login: (identifier: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (userData: { username: string; name: string; email: string; password: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   switchUser: (user: User) => void;
+  loginAsDemo: (demoUser: User) => void;
   updateUser: (updates: Partial<User>) => void;
 }
 
@@ -18,56 +21,86 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [demoUsers, setDemoUsers] = useState<User[]>(DEMO_USERS);
 
   useEffect(() => {
-    // Load persisted user or default to CURRENT_USER
+    // 1. Check if an active session exists in localStorage
     const saved = StorageService.getCurrentUser();
-    setUser(saved || CURRENT_USER);
+    if (saved && saved.id) {
+      setUser(saved);
+      setIsAuthenticated(true);
+    } else {
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+    setIsLoading(false);
+
+    // 2. Fetch available demo accounts
+    ApiClient.getDemoUsers().then((users) => {
+      if (users && users.length > 0) {
+        setDemoUsers(users);
+      }
+    });
   }, []);
 
-  const login = async (email: string, _password: string): Promise<boolean> => {
-    // Check if email matches any demo username or email
-    const username = email.split('@')[0].toLowerCase();
-    const matched = DEMO_USERS.find(u => u.username.toLowerCase() === username) || CURRENT_USER;
-    
-    setUser(matched);
-    setIsAuthenticated(true);
-    StorageService.updateCurrentUser(matched);
-    return true;
+  const login = async (identifier: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await ApiClient.login({ identifier, password });
+      if (res.success && res.user) {
+        setUser(res.user);
+        setIsAuthenticated(true);
+        StorageService.setCurrentUser(res.user);
+        return { success: true };
+      }
+      return { success: false, error: res.error || 'Invalid credentials' };
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const signup = async (_email: string, _password: string, username: string, name: string): Promise<boolean> => {
-    const newUser: User = {
-      id: `usr_${Date.now()}`,
-      username: username.toLowerCase().replace(/\s+/g, '_'),
-      name: name || username,
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=400&q=80',
-      bio: 'New explorer on YANAR ✨',
-      followersCount: 0,
-      followingCount: 0,
-      postsCount: 0,
-    };
-    setUser(newUser);
+  const signup = async (userData: { username: string; name: string; email: string; password: string }): Promise<{ success: boolean; error?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await ApiClient.signup(userData);
+      if (res.success && res.user) {
+        setUser(res.user);
+        setIsAuthenticated(true);
+        StorageService.setCurrentUser(res.user);
+        return { success: true };
+      }
+      return { success: false, error: res.error || 'Registration failed' };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginAsDemo = (demoUser: User) => {
+    setUser(demoUser);
     setIsAuthenticated(true);
-    StorageService.updateCurrentUser(newUser);
-    return true;
+    StorageService.setCurrentUser(demoUser);
   };
 
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
+    StorageService.setCurrentUser(null);
   };
 
   const switchUser = (newUser: User) => {
     setUser(newUser);
     setIsAuthenticated(true);
-    StorageService.updateCurrentUser(newUser);
+    StorageService.setCurrentUser(newUser);
   };
 
   const updateUser = (updates: Partial<User>) => {
     const updated = StorageService.updateCurrentUser(updates);
-    setUser(updated);
+    if (updated) {
+      setUser(updated);
+      ApiClient.updateProfile({ id: updated.id, ...updates });
+    }
   };
 
   return (
@@ -75,11 +108,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         isAuthenticated,
-        demoUsers: [CURRENT_USER, ...DEMO_USERS],
+        isLoading,
+        demoUsers,
         login,
         signup,
         logout,
         switchUser,
+        loginAsDemo,
         updateUser,
       }}
     >

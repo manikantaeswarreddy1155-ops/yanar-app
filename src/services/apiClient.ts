@@ -22,6 +22,51 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const ApiClient = {
+  // Auth
+  async login(credentials: { identifier: string; password?: string }): Promise<{ success: boolean; user?: User; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || 'Login failed' };
+      }
+      return { success: true, user: data.user };
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Network error';
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  async signup(userData: { username: string; name: string; email: string; password: string }): Promise<{ success: boolean; user?: User; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || 'Registration failed' };
+      }
+      return { success: true, user: data.user };
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Network error';
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  async getDemoUsers(): Promise<User[]> {
+    const data = await request<{ success: boolean; users: User[] }>('/auth/demo-users');
+    if (data?.success && data.users) {
+      return data.users;
+    }
+    return StorageService.getUsers().slice(0, 5);
+  },
+
   // Posts
   async getPosts(): Promise<Post[]> {
     const data = await request<{ success: boolean; posts: Post[] }>('/posts');

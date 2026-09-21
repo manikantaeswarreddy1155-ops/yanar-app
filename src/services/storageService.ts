@@ -29,12 +29,21 @@ function setStored<T>(key: string, value: T): void {
 
 export const StorageService = {
   // Current user
-  getCurrentUser(): User {
-    return getStored<User>(KEYS.USER, CURRENT_USER);
+  getCurrentUser(): User | null {
+    return getStored<User | null>(KEYS.USER, null);
   },
 
-  updateCurrentUser(updates: Partial<User>): User {
+  setCurrentUser(user: User | null): void {
+    if (user) {
+      setStored(KEYS.USER, user);
+    } else {
+      localStorage.removeItem(KEYS.USER);
+    }
+  },
+
+  updateCurrentUser(updates: Partial<User>): User | null {
     const current = this.getCurrentUser();
+    if (!current) return null;
     const updated = { ...current, ...updates };
     setStored(KEYS.USER, updated);
     return updated;
@@ -48,7 +57,7 @@ export const StorageService = {
   toggleFollowUser(userId: string): { user: User; currentUser: User } {
     const users = this.getUsers();
     let targetUser = users.find(u => u.id === userId);
-    const currentUser = this.getCurrentUser();
+    const currentUser = this.getCurrentUser() || CURRENT_USER;
 
     if (targetUser) {
       const isFollowing = !targetUser.isFollowing;
@@ -109,7 +118,7 @@ export const StorageService = {
 
   addComment(postId: string, text: string): Post[] {
     const posts = this.getPosts();
-    const currentUser = this.getCurrentUser();
+    const currentUser = this.getCurrentUser() || CURRENT_USER;
     const newComment: Comment = {
       id: `c_${Date.now()}`,
       user: currentUser,
@@ -134,7 +143,7 @@ export const StorageService = {
 
   createPost(data: { mediaUrl: string; caption: string; location?: string; type?: 'image' | 'video' }): Post {
     const posts = this.getPosts();
-    const currentUser = this.getCurrentUser();
+    const currentUser = this.getCurrentUser() || CURRENT_USER;
     const newPost: Post = {
       id: `post_${Date.now()}`,
       author: currentUser,
@@ -183,7 +192,7 @@ export const StorageService = {
 
   createReel(data: { videoUrl: string; caption: string; audioTrack?: string }): Reel {
     const reels = this.getReels();
-    const currentUser = this.getCurrentUser();
+    const currentUser = this.getCurrentUser() || CURRENT_USER;
     const newReel: Reel = {
       id: `reel_${Date.now()}`,
       author: currentUser,
@@ -210,7 +219,7 @@ export const StorageService = {
 
   addStory(mediaUrl: string, type: 'image' | 'video' = 'image'): Story {
     const stories = this.getStories();
-    const currentUser = this.getCurrentUser();
+    const currentUser = this.getCurrentUser() || CURRENT_USER;
     const newStory: Story = {
       id: `story_${Date.now()}`,
       user: currentUser,
@@ -239,7 +248,7 @@ export const StorageService = {
 
   sendMessage(conversationId: string, content: { text?: string; mediaUrl?: string; mediaType?: 'image' | 'video' }): { conversation: Conversation; message: Message } {
     const conversations = this.getConversations();
-    const currentUser = this.getCurrentUser();
+    const currentUser = this.getCurrentUser() || CURRENT_USER;
     const newMessage: Message = {
       id: `msg_${Date.now()}`,
       senderId: currentUser.id,
