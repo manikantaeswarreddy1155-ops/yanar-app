@@ -40,7 +40,13 @@ const AppContent: React.FC = () => {
 
   // Load from live SQLite database via ApiClient
   useEffect(() => {
-    if (!user?.id || user.id === 'usr_me' || user.username === 'alexrivers') {
+    if (
+      !user?.id ||
+      user.id === 'usr_me' ||
+      user.id === 'usr_alex' ||
+      user.username === 'alexrivers' ||
+      user.name === 'Alex Rivers'
+    ) {
       return;
     }
 
@@ -270,7 +276,15 @@ const AppContent: React.FC = () => {
   }
 
   // Strictly enforce auth gate: if unauthenticated or legacy demo user, show AuthPage
-  if (!isAuthenticated || !user || user.id === 'usr_me' || user.username === 'alexrivers') {
+  if (
+    !isAuthenticated ||
+    !user ||
+    !user.id ||
+    user.id === 'usr_me' ||
+    user.id === 'usr_alex' ||
+    user.username === 'alexrivers' ||
+    user.name === 'Alex Rivers'
+  ) {
     return <AuthPage onSuccess={() => setActiveTab('home')} />;
   }
 

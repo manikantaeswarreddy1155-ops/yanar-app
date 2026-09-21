@@ -1,5 +1,5 @@
 import { User, Post, Story, Reel, Conversation, Message, Comment } from '../types';
-import { CURRENT_USER, DEMO_USERS, INITIAL_POSTS, INITIAL_REELS, INITIAL_STORIES, INITIAL_CONVERSATIONS } from './mockData';
+import { DEMO_USERS, INITIAL_POSTS, INITIAL_REELS, INITIAL_STORIES, INITIAL_CONVERSATIONS } from './mockData';
 
 const KEYS = {
   USER: 'yanar_auth_session_v2',
@@ -13,9 +13,16 @@ const KEYS = {
 // Purge any legacy demo user stored from earlier deployments
 try {
   if (typeof window !== 'undefined' && window.localStorage) {
-    const legacy = localStorage.getItem('yanar_user');
-    if (legacy && (legacy.includes('alexrivers') || legacy.includes('usr_me'))) {
-      localStorage.removeItem('yanar_user');
+    const legacyKeys = ['yanar_user', 'user', 'currentUser', 'yanar_current_user', 'demo_user', 'yanar_demo_user'];
+    legacyKeys.forEach(k => localStorage.removeItem(k));
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k) {
+        const val = localStorage.getItem(k);
+        if (val && (val.includes('alexrivers') || val.includes('usr_me') || val.includes('usr_alex') || val.includes('Alex Rivers'))) {
+          localStorage.removeItem(k);
+        }
+      }
     }
   }
 } catch {}
@@ -41,19 +48,35 @@ export const StorageService = {
   // Current user (strictly null when not explicitly logged in)
   getCurrentUser(): User | null {
     const user = getStored<User | null>(KEYS.USER, null);
-    if (!user || !user.id || user.id === 'usr_me' || user.username === 'alexrivers') {
+    if (
+      !user ||
+      !user.id ||
+      user.id === 'usr_me' ||
+      user.id === 'usr_alex' ||
+      user.username === 'alexrivers' ||
+      user.name === 'Alex Rivers'
+    ) {
       return null;
     }
     return user;
   },
 
   setCurrentUser(user: User | null): void {
-    if (user && user.id !== 'usr_me' && user.username !== 'alexrivers') {
+    if (
+      user &&
+      user.id &&
+      user.id !== 'usr_me' &&
+      user.id !== 'usr_alex' &&
+      user.username !== 'alexrivers' &&
+      user.name !== 'Alex Rivers'
+    ) {
       setStored(KEYS.USER, user);
     } else {
       try {
         localStorage.removeItem(KEYS.USER);
         localStorage.removeItem('yanar_user');
+        localStorage.removeItem('user');
+        localStorage.removeItem('currentUser');
       } catch {}
     }
   },
@@ -71,10 +94,10 @@ export const StorageService = {
     return getStored<User[]>(KEYS.USERS, DEMO_USERS);
   },
 
-  toggleFollowUser(userId: string): { user: User; currentUser: User } {
+  toggleFollowUser(userId: string): { user: User; currentUser: User | null } {
     const users = this.getUsers();
     let targetUser = users.find(u => u.id === userId);
-    const currentUser = this.getCurrentUser() || CURRENT_USER;
+    const currentUser = this.getCurrentUser();
 
     if (targetUser) {
       const isFollowing = !targetUser.isFollowing;
@@ -87,16 +110,19 @@ export const StorageService = {
       const updatedUsers = users.map(u => (u.id === userId ? targetUser! : u));
       setStored(KEYS.USERS, updatedUsers);
 
-      const updatedCurrentUser = {
-        ...currentUser,
-        followingCount: isFollowing ? currentUser.followingCount + 1 : Math.max(0, currentUser.followingCount - 1),
-      };
-      setStored(KEYS.USER, updatedCurrentUser);
+      if (currentUser) {
+        const updatedCurrentUser = {
+          ...currentUser,
+          followingCount: isFollowing ? currentUser.followingCount + 1 : Math.max(0, currentUser.followingCount - 1),
+        };
+        setStored(KEYS.USER, updatedCurrentUser);
+        return { user: targetUser, currentUser: updatedCurrentUser };
+      }
 
-      return { user: targetUser, currentUser: updatedCurrentUser };
+      return { user: targetUser, currentUser: null };
     }
 
-    return { user: targetUser || DEMO_USERS[0], currentUser };
+    return { user: targetUser || DEMO_USERS[0], currentUser: currentUser || null };
   },
 
   // Posts
@@ -135,7 +161,9 @@ export const StorageService = {
 
   addComment(postId: string, text: string): Post[] {
     const posts = this.getPosts();
-    const currentUser = this.getCurrentUser() || CURRENT_USER;
+    const currentUser = this.getCurrentUser();
+    if (!currentUser) return posts;
+
     const newComment: Comment = {
       id: `c_${Date.now()}`,
       user: currentUser,
@@ -160,7 +188,10 @@ export const StorageService = {
 
   createPost(data: { mediaUrl: string; caption: string; location?: string; type?: 'image' | 'video' }): Post {
     const posts = this.getPosts();
-    const currentUser = this.getCurrentUser() || CURRENT_USER;
+    const currentUser = this.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Must be authenticated to create a post');
+    }
     const newPost: Post = {
       id: `post_${Date.now()}`,
       author: currentUser,
@@ -209,7 +240,10 @@ export const StorageService = {
 
   createReel(data: { videoUrl: string; caption: string; audioTrack?: string }): Reel {
     const reels = this.getReels();
-    const currentUser = this.getCurrentUser() || CURRENT_USER;
+    const currentUser = this.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Must be authenticated to create a reel');
+    }
     const newReel: Reel = {
       id: `reel_${Date.now()}`,
       author: currentUser,
@@ -236,7 +270,10 @@ export const StorageService = {
 
   addStory(mediaUrl: string, type: 'image' | 'video' = 'image'): Story {
     const stories = this.getStories();
-    const currentUser = this.getCurrentUser() || CURRENT_USER;
+    const currentUser = this.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Must be authenticated to add a story');
+    }
     const newStory: Story = {
       id: `story_${Date.now()}`,
       user: currentUser,
@@ -265,7 +302,10 @@ export const StorageService = {
 
   sendMessage(conversationId: string, content: { text?: string; mediaUrl?: string; mediaType?: 'image' | 'video' }): { conversation: Conversation; message: Message } {
     const conversations = this.getConversations();
-    const currentUser = this.getCurrentUser() || CURRENT_USER;
+    const currentUser = this.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Must be authenticated to send a message');
+    }
     const newMessage: Message = {
       id: `msg_${Date.now()}`,
       senderId: currentUser.id,

@@ -23,17 +23,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [demoUsers, setDemoUsers] = useState<User[]>(DEMO_USERS);
+  const [demoUsers, setDemoUsers] = useState<User[]>(
+    DEMO_USERS.filter((u) => u.username !== 'alexrivers' && u.id !== 'usr_me' && u.id !== 'usr_alex')
+  );
 
   useEffect(() => {
-    // Clear any stale legacy demo user from older deployments
+    // 1. Purge all legacy storage keys and any cached demo/Alex Rivers profiles
     try {
-      localStorage.removeItem('yanar_user');
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const legacyKeys = [
+          'yanar_user',
+          'user',
+          'currentUser',
+          'yanar_current_user',
+          'demo_user',
+          'yanar_demo_user',
+          'yanar_auth_user',
+        ];
+        legacyKeys.forEach((k) => localStorage.removeItem(k));
+
+        // Scan all storage keys and purge any key that contains Alex Rivers or demo identifiers
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key) {
+            const val = localStorage.getItem(key);
+            if (
+              val &&
+              (val.includes('alexrivers') ||
+                val.includes('usr_me') ||
+                val.includes('usr_alex') ||
+                val.includes('Alex Rivers'))
+            ) {
+              localStorage.removeItem(key);
+            }
+          }
+        }
+      }
     } catch {}
 
-    // Check if an active registered session exists
+    // 2. Validate saved session - strictly require a valid registered non-demo account
     const saved = StorageService.getCurrentUser();
-    if (saved && saved.id && saved.id !== 'usr_me' && saved.username !== 'alexrivers') {
+    if (
+      saved &&
+      saved.id &&
+      saved.id !== 'usr_me' &&
+      saved.id !== 'usr_alex' &&
+      saved.username !== 'alexrivers' &&
+      saved.name !== 'Alex Rivers'
+    ) {
       setUser(saved);
       setIsAuthenticated(true);
     } else {
@@ -43,10 +80,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setIsLoading(false);
 
-    // Fetch available demo accounts for the optional explorer drawer
+    // 3. Fetch available demo accounts for the optional explorer drawer, filtering out Alex Rivers
     ApiClient.getDemoUsers().then((users) => {
       if (users && users.length > 0) {
-        setDemoUsers(users);
+        const filtered = users.filter(
+          (u) => u.id !== 'usr_me' && u.id !== 'usr_alex' && u.username !== 'alexrivers'
+        );
+        if (filtered.length > 0) {
+          setDemoUsers(filtered);
+        }
       }
     });
   }, []);

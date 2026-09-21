@@ -171,7 +171,7 @@ app.post('/api/auth/signup', (req, res) => {
 });
 
 app.get('/api/auth/demo-users', (_req, res) => {
-  const demoUsers = db.prepare('SELECT * FROM users LIMIT 5').all();
+  const demoUsers = db.prepare("SELECT * FROM users WHERE id != 'usr_me' AND username != 'alexrivers' LIMIT 5").all();
   res.json({ success: true, users: demoUsers.map(formatUser) });
 });
 
